@@ -1,0 +1,125 @@
+---
+title: "Week3"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(reticulate)
+use_python('/Users/Sam/miniconda3/bin/python', required=TRUE)
+```
+
+### Base R
+
+#### Get the mean `mpg` after grouping by `cyl`
+
+```{R}
+aggregate(mpg ~ cyl, data=mtcars, mean)
+```
+
+#### Get the means for all `(cyl, gear)` combos
+
+```{R}
+aggregate(mpg ~ cyl + gear, data=mtcars, mean)
+```
+
+### dplyr
+
+#### Get the mean `mpg` after grouping by `cyl`
+
+```{R}
+library(dplyr)
+results = mtcars %>%
+    group_by(cyl) %>%
+    summarise(mean_mpg = mean(mpg))
+
+print(results)
+```
+
+#### Get the means for all `(cyl, gear)` combos
+
+```{R}
+results = mtcars %>%
+    group_by(cyl, gear) %>%
+    summarise(mean_mpg = mean(mpg))
+
+as.data.frame(results)
+```
+
+### dbplyr... as a database!
+
+#### Load our database into an `sqlite3` database
+
+```{R}
+# Create a connection ("con") to a database file:
+con <- DBI::dbConnect(RSQLite::SQLite(), "mtcars.sqlite3")
+# Write our data frame to the database in a table called "mtcars"
+DBI::dbWriteTable(con, "mtcars", mtcars)
+# Disconnect from our database
+DBI::dbDisconnect(con)
+```
+
+#### Create an SQL query and `collect` the result
+
+```{R}
+con <- DBI::dbConnect(RSQLite::SQLite(), "mtcars.sqlite3")
+mtcars2 <- tbl(con, "mtcars")
+g = mtcars2 %>% 
+    group_by(cyl) %>%
+    summarise(mean_mpg=mean(mpg))
+
+result = g %>% collect()
+as.data.frame(result)
+```
+
+### With Python
+
+#### Put mtcars into Python
+
+```{python}
+import pandas
+mtcars = r.mtcars
+mtcars.head()
+```
+
+#### Repeat our analyses
+
+````{python}
+mtcars.groupby(['cyl'])['mpg'].mean()
+
+mtcars.groupby(['cyl', 'gear'])['mpg'].mean()
+```
+
+#### Python to sqlite
+
+```{python}
+import sqlite3
+con = sqlite3.connect("mtcars_from_pandas.sqlite3")
+# Add our data frame to the mtcars table in the database
+mtcars.to_sql("mtcars", con)
+con.close()
+```
+
+```{bash}
+ls -lhrt *.sqlite3
+```
+
+#### Read it back into python
+
+```{python}
+import pandas as pd
+
+con = sqlite3.connect("mtcars_from_pandas.sqlite3")
+df = pd.read_sql("select * from mtcars", con)
+df.head()
+```
+
+#### To do the analysis
+
+```{python}
+df = pd.read_sql("select cyl, avg(mpg) from mtcars group by cyl", con)
+df.head()
+
+df = pd.read_sql("select cyl, gear, avg(mpg) from mtcars group by cyl, gear", con)
+df.head()
+```
